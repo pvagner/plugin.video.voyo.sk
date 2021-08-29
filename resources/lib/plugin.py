@@ -16,12 +16,28 @@ _addon = xbmcaddon.Addon()
 _profile = xbmc.translatePath( _addon.getAddonInfo('profile'))
 plugin = routing.Plugin()
 
-_baseurl = 'https://voyo.nova.cz/'
+_baseurl = 'https://voyo.markiza.sk/'
+_loginCheckUrl = 'https://crm.cms.markiza.sk/api/v1/users/login-check'
+_loginUrl = 'https://voyo.markiza.sk/prihlasenie'
+_loginFormDoValue = 'content204-loginForm-form-submit'
+_tvShowsUrl = 'api/v1/shows/genres?category=voyo-4&sort=title__asc&limit=64&page=1'
+_moviesUrl = 'api/v1/shows/genres?category=voyo-5&sort=title__asc&limit=64&page=1'
+_seriesUrl = 'api/v1/shows/genres?category=voyo-3&sort=title__asc&limit=64&page=1'
+_kidsUrl = 'api/v1/shows/genres?category=voyo-7&sort=title__asc&limit=64&page=1'
+_wholeEpisodesUrl = '/cele-diely'
+
+@plugin.route('/list_shows_next')
+def list_shows_next():
+    return list_shows(0)
 
 @plugin.route('/list_shows/<type>')
 def list_shows(type):
     xbmcplugin.setContent(plugin.handle, 'tvshows')
-    soup = get_page(_baseurl+'porady/zanry')
+    try:
+        url = plugin.args['show_url'][0]
+    except KeyError:
+        url = _baseurl+_tvShowsUrl
+    soup = get_page(url)
     listing = []
     articles = soup.find_all('div', {'class': 'c-video-box'})
     for article in articles:
@@ -30,28 +46,55 @@ def list_shows(type):
         list_item.setInfo('video', {'mediatype': 'tvshow', 'title': title})
         list_item.setArt({'poster': article.div.img['data-src']})
         listing.append((plugin.url_for(get_list, category = False, show_url = article.h3.a['href'], showtitle = title), list_item, True))
+    next = soup.find('div', {'class': 'load-more'})
+    if next:
+        list_item = xbmcgui.ListItem(label=_addon.getLocalizedString(30004))
+        listing.append((plugin.url_for(list_shows_next, show_url = next.find('button')['data-href']), list_item, True))
+
     xbmcplugin.addDirectoryItems(plugin.handle, listing, len(listing))
     xbmcplugin.endOfDirectory(plugin.handle)
+
+@plugin.route('/list_movies_next')
+def list_movies_next():
+    return list_movies(0)
 
 @plugin.route('/list_movies/<type>')	
 def list_movies(type):
     xbmcplugin.setContent(plugin.handle, 'tvshows')
-    soup = get_page(_baseurl+'filmy/zanry')
+    try:
+        url = plugin.args['show_url'][0]
+    except KeyError:
+        url = _baseurl+_moviesUrl
+    soup = get_page(url)
     listing = []
     articles = soup.find_all('div', {'class': 'c-video-box'})
     for article in articles:
         title = article.h3.a.contents[0].encode('utf-8')
         list_item = xbmcgui.ListItem(label=title)
-        list_item.setInfo('video', {'mediatype': 'tvshow', 'title': title})
+        list_item.setInfo('video', {'mediatype': 'movie', 'title': title})
         list_item.setArt({'poster': article.div.img['data-src']})
-        listing.append((plugin.url_for(get_list, category = False, show_url = article.h3.a['href'], showtitle = title), list_item, True))
+        list_item.setProperty('IsPlayable', 'true')
+        listing.append((plugin.url_for(get_video, article.h3.a['href']), list_item, False))
+    next = soup.find('div', {'class': 'load-more'})
+    if next:
+        list_item = xbmcgui.ListItem(label=_addon.getLocalizedString(30004))
+        listing.append((plugin.url_for(list_movies_next, show_url = next.find('button')['data-href']), list_item, True))
+
     xbmcplugin.addDirectoryItems(plugin.handle, listing, len(listing))
     xbmcplugin.endOfDirectory(plugin.handle)
+
+@plugin.route('/list_serials_next')
+def list_serials_next():
+    return list_serials(0)
 
 @plugin.route('/list_serials/<type>')
 def list_serials(type):
     xbmcplugin.setContent(plugin.handle, 'tvshows')
-    soup = get_page(_baseurl+'serialy/zanry')
+    try:
+        url = plugin.args['show_url'][0]
+    except KeyError:
+        url = _baseurl+_seriesUrl
+    soup = get_page(url)
     listing = []
     articles = soup.find_all('div', {'class': 'c-video-box'})
     for article in articles:
@@ -60,6 +103,45 @@ def list_serials(type):
         list_item.setInfo('video', {'mediatype': 'tvshow', 'title': title})
         list_item.setArt({'poster': article.div.img['data-src']})
         listing.append((plugin.url_for(get_list, category = False, show_url = article.h3.a['href'], showtitle = title), list_item, True))
+    next = soup.find('div', {'class': 'load-more'})
+    if next:
+        list_item = xbmcgui.ListItem(label=_addon.getLocalizedString(30004))
+        listing.append((plugin.url_for(list_serials_next, show_url = next.find('button')['data-href']), list_item, True))
+
+    xbmcplugin.addDirectoryItems(plugin.handle, listing, len(listing))
+    xbmcplugin.endOfDirectory(plugin.handle)
+
+@plugin.route('/list_kids_next')
+def list_kids_next():
+    return list_kids(0)
+
+@plugin.route('/list_kids/<type>')
+def list_kids(type):
+    xbmcplugin.setContent(plugin.handle, 'tvshows')
+    try:
+        url = plugin.args['show_url'][0]
+    except KeyError:
+        url = _baseurl+_kidsUrl
+    soup = get_page(url)
+    listing = []
+    articles = soup.find_all('div', {'class': 'c-video-box'})
+    for article in articles:
+        title = article.h3.a.contents[0].encode('utf-8')
+        showUrl = article.h3.a['href']
+        list_item = xbmcgui.ListItem(label=title)
+        list_item.setArt({'poster': article.div.img['data-src']})
+        if not "/film" in showUrl:
+            list_item.setInfo('video', {'mediatype': 'tvshow', 'title': title})
+            listing.append((plugin.url_for(get_list, category = False, show_url = showUrl, showtitle = title), list_item, True))
+        else:
+            list_item.setInfo('video', {'mediatype': 'movie', 'title': title})
+            list_item.setProperty('IsPlayable', 'true')
+            listing.append((plugin.url_for(get_video, showUrl), list_item, False))
+    next = soup.find('div', {'class': 'load-more'})
+    if next:
+        list_item = xbmcgui.ListItem(label=_addon.getLocalizedString(30004))
+        listing.append((plugin.url_for(list_kids_next, show_url = next.find('button')['data-href']), list_item, True))
+
     xbmcplugin.addDirectoryItems(plugin.handle, listing, len(listing))
     xbmcplugin.endOfDirectory(plugin.handle)
 
@@ -95,8 +177,8 @@ def get_list():
     category = plugin.args['category'][0]
     if category == 'False':
         list_item = xbmcgui.ListItem(label=_addon.getLocalizedString(30007))
-        listing.append((plugin.url_for(get_category, show_url = url), list_item, True))
-        url = plugin.args['show_url'][0]+'/cele-dily'
+        listing.append((plugin.url_for(get_category, show_url = url, showtitle = plugin.args['showtitle'][0]), list_item, True))
+        #url = plugin.args['show_url'][0]+_wholeEpisodesUrl
     soup = get_page(url)
     if 'showtitle' in plugin.args:
         showtitle = plugin.args['showtitle'][0].encode('utf-8')
@@ -123,16 +205,17 @@ def get_list():
     xbmcplugin.addDirectoryItems(plugin.handle, listing, len(listing))
     xbmcplugin.endOfDirectory(plugin.handle)
 
-@plugin.route('/get_catogory/')
+@plugin.route('/get_category/')
 def get_category():
     listing = []
     soup = get_page(plugin.args['show_url'][0])
-    navs = soup.find('nav', 'navigation js-show-detail-nav')
+    navs = soup.find('div', {'class': 'c-video-category-wrapper'}).find('div', {'class': 'dropdown-menu'})
     if navs:
         for nav in navs.find_all('a'):
-            list_item = xbmcgui.ListItem(nav['title'])
-            list_item.setInfo('video', {'mediatype': 'episode'})
-            listing.append((plugin.url_for(get_list, category = True, show_url = nav['href']), list_item, True))
+            list_item = xbmcgui.ListItem(nav.text)
+            list_item.setInfo('video', {'mediatype': 'tvshow'})
+            #list_item.setInfo('video', {'mediatype': 'episode'})
+            listing.append((plugin.url_for(get_list, category = False, show_url = nav['data-url'], showtitle = plugin.args['showtitle'][0]), list_item, True))
 
     xbmcplugin.addDirectoryItems(plugin.handle, listing, len(listing))
     xbmcplugin.endOfDirectory(plugin.handle)
@@ -144,7 +227,10 @@ def get_video(url):
     source_type = _addon.getSetting('source_type')
     soup = get_page(url)
     desc = soup.find('meta', {'name':'description'})['content'].encode('utf-8')
-    showtitle = soup.find('h2', {'class':'subtitle'}).find('a').get_text().encode('utf-8')
+    try:
+        showtitle = soup.find('h2', {'class':'subtitle'}).find('a').get_text().encode('utf-8')
+    except AttributeError:
+                showtitle = None
     title = soup.find('h1', {'class':'title'}).get_text().encode('utf-8')
     embeded = get_page(soup.find('div', {'class':'c-player-wrap'}).find('iframe')['src']).find_all('script')[-1]
     json_data = json.loads(re.compile('{\"tracks\":(.+?),\"duration\"').findall(str(embeded))[0])
@@ -206,7 +292,7 @@ def get_session():
 	return s
 	
 def test_auth(s):
-	r = s.get('https://crm.cms.nova.cz/api/v1/users/login-check', headers={'User-Agent': 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:80.0) Gecko/20100101 Firefox/80.0'})
+	r = s.get(_loginCheckUrl, headers={'User-Agent': 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:80.0) Gecko/20100101 Firefox/80.0'})
 	try:
 		if r.json()['data']['logged_in'] == True:
 			auth = 1
@@ -221,9 +307,9 @@ def make_login(s):
 	data = {
 		'email': username,
 		'password': password,
-		'_do': 'content186-loginForm-form-submit'
+		'_do': _loginFormDoValue
 	}
-	r = s.post('https://voyo.nova.cz/prihlaseni', headers={'User-Agent': 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:80.0) Gecko/20100101 Firefox/80.0'}, data=data)
+	r = s.post(_loginUrl, headers={'User-Agent': 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:80.0) Gecko/20100101 Firefox/80.0'}, data=data)
 	with open(cookie_file, 'wb') as f:
 		pickle.dump(s.cookies, f)
 	return s
@@ -272,6 +358,10 @@ def root():
 	list_item = xbmcgui.ListItem('Filmy')
 	list_item.setArt({'icon': 'DefaultTVShows.png'})
 	listing.append((plugin.url_for(list_movies, 0), list_item, True))	
+	
+	list_item = xbmcgui.ListItem('Pre deti')
+	list_item.setArt({'icon': 'DefaultTVShows.png'})
+	listing.append((plugin.url_for(list_kids, 0), list_item, True))	
 	
 	xbmcplugin.addDirectoryItems(plugin.handle, listing, len(listing))
 	xbmcplugin.endOfDirectory(plugin.handle)
